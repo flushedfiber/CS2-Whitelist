@@ -33,8 +33,8 @@ public partial class Whitelist
       try
       {
         await connection.ExecuteAsync(@$"CREATE TABLE IF NOT EXISTS `{Config.Database.Prefix}` 
-        (`id` INT NOT NULL AUTO_INCREMENT, `value` varchar(128) NOT NULL, `server_id` INT, PRIMARY KEY (`id`),
-         CONSTRAINT UK_WHITELIST UNIQUE (value,server_id)) 
+        (`id` INT NOT NULL AUTO_INCREMENT, `steamid` varchar(128) NOT NULL, `server_id` INT, PRIMARY KEY (`id`),
+         CONSTRAINT UK_WHITELIST UNIQUE (steamid,server_id)) 
          ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci");
 
         await connection.CloseAsync();
@@ -51,14 +51,14 @@ public partial class Whitelist
       throw new Exception($"{Localizer["Prefix"]} Unknown mysql exception! " + ex.Message);
     }
   }
-  async public Task<IEnumerable<dynamic>?> GetFromDatabase(List<string> value)
+  async public Task<IEnumerable<dynamic>?> GetFromDatabase(List<string> steamid)
   {
     try
     {
       using var connection = new MySqlConnection(_databaseConnectionString);
 
       string query = @$"SELECT * FROM {Config.Database.Prefix}
-       WHERE value IN ({string.Join(",", value.Select(v => $"'{v}'"))}) 
+       WHERE steamid IN ({string.Join(",", steamid.Select(v => $"'{v}'"))}) 
        {(Config.ServerID >= 0 ? $"AND (server_id = {Config.ServerID} OR server_id = 0)" : "")}";
 
       IEnumerable<dynamic> result = await connection.QueryAsync(query);
@@ -73,17 +73,17 @@ public partial class Whitelist
       return null;
     }
   }
-  async public Task<bool> SetToDatabase(string[] value, bool isInsert)
+  async public Task<bool> SetToDatabase(string[] steamid, bool isInsert)
   {
     bool isServerIDEnabled = Config.ServerID >= 0;
     if (!isInsert && isServerIDEnabled)
     {
-      for (int i = 0; i < value.Length; i++)
+      for (int i = 0; i < steamid.Length; i++)
       {
-        string[] split = value[i].Split(",");
-        split[0] = "(value = " + split[0] + " AND ";
+        string[] split = steamid[i].Split(",");
+        split[0] = "(steamid = " + split[0] + " AND ";
         split[1] = "server_id = " + split[1] + ")";
-        value[i] = split[0] + split[1];
+        steamid[i] = split[0] + split[1];
       }
     }
 
@@ -92,14 +92,14 @@ public partial class Whitelist
       using var connection = new MySqlConnection(_databaseConnectionString);
       string query =
       isInsert ?
-          @$"INSERT INTO `{Config.Database.Prefix}` (value{(isServerIDEnabled ? ",server_id" : "")}) 
-          VALUES {string.Join(",", string.Join(",", value.Select(v => $"({v})")))}"
+          @$"INSERT INTO `{Config.Database.Prefix}` (steamid{(isServerIDEnabled ? ",server_id" : "")}) 
+          VALUES {string.Join(",", string.Join(",", steamid.Select(v => $"({v})")))}"
       :
       !isServerIDEnabled ?
         @$"DELETE FROM `{Config.Database.Prefix}` WHERE 
-        value in ({string.Join(",", value.Select(v => $"'{v}'"))}"
+        steamid in ({string.Join(",", steamid.Select(v => $"'{v}'"))}"
         :
-         @$"DELETE FROM `{Config.Database.Prefix}` WHERE {string.Join(" OR ", value)}";
+         @$"DELETE FROM `{Config.Database.Prefix}` WHERE {string.Join(" OR ", steamid)}";
 
       await connection.ExecuteAsync(query);
       await connection.CloseAsync();
